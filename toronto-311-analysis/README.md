@@ -1,40 +1,101 @@
-# Toronto 311 Service Request Analysis
+# Toronto 311 Service Request Analysis (2025)
 
-**Overview**
+A full-year analysis of 464,000+ service requests from the City of Toronto's 311 open data portal. Built to demonstrate how municipal service data can support staffing decisions, demand forecasting, and resource allocation.
 
-This project analyzes service requests submitted by Toronto residents via the 311 customer service system. The goal is to understand what types of issues residents report most frequently, how requests vary over time and across neighbourhoods, and where resources could be allocated to improve city services.
+## What This Project Does
 
-**Problem Statement**
+This project connects to the City of Toronto's CKAN open data API, downloads the latest 311 service request dataset, cleans and preprocesses the data, and generates 14 interactive visualizations covering demand patterns, geographic distribution, ward-level breakdowns, correlation analysis, outlier detection, and short-term forecasting.
 
-The City of Toronto receives thousands of service requests each month through its 311 system. Without analysis, it's difficult to prioritize issues, identify hotspots, and allocate resources effectively. This project uses open data to categorize requests by type, analyse temporal patterns, and visualize geographic trends to inform city management and community planning.
+## Key Findings (2025 Data)
 
-**Data Source**
+- **464,080 service requests** across 510 request types and 26 wards
+- **Peak month:** February (53,268 requests) driven by winter storms
+- **Peak hour:** 10:00 AM (39,549 requests across the year)
+- **Biggest single-day spike:** February 19 with 6,153 requests (winter storm)
+- **Top request type:** Residential Bin Lid Damaged (24,000+)
+- **Highest volume ward:** Toronto-Danforth (28,246 requests)
+- **Top correlated pair:** Bin Lid Damaged and Bin Body Damaged (0.88 correlation)
+- **Pothole forecast:** Average 7.9 requests per day predicted for the next 30 days
 
-The dataset comes from Toronto's open data portal. The "311 Service Requests – Customer Initiated" dataset contains records of all service requests submitted by residents. Each record includes the creation date/time, service type, status, and location. The dataset is updated monthly and is accessible via the City of Toronto's CKAN API【111782869124138†L117-L160】.
+## Visualizations Generated
 
-**Tools Used**
+| Chart | What It Shows | Operational Use |
+|-------|--------------|-----------------|
+| Top 15 Request Types | Most common service categories | Prioritize staffing and training |
+| Monthly Volume Trend | Seasonal demand patterns | Plan shift coverage by month |
+| Hourly Volume | Peak hours during the day | Schedule staff for peak times |
+| Day-Hour Heatmap | Demand by day and hour combined | Detailed shift planning |
+| Ward Breakdown | Request volume by geographic area | Allocate resources by area |
+| Division Workload | Which city departments handle what | Understand workload distribution |
+| Interactive Heatmap | Geographic density of requests | Identify hotspot neighborhoods |
+| Spike Detection | Days with unusual volume | Detect weather and event triggers |
+| Outlier Detection | Statistical anomalies (Z-score) | Flag days needing surge response |
+| Correlation Heatmap | Which request types move together | Predict cascade demand |
+| Ward vs Issue Heatmap | Which issues are in which wards | Localized resource planning |
+| Top 3 Ward Comparison | Issue profile by ward | Curate reports per area |
+| Status Distribution | Open, closed, cancelled breakdown | Track resolution performance |
+| Pothole Forecast | 30-day demand prediction | Proactive crew scheduling |
 
-- Python, pandas, geopandas for spatial analysis, matplotlib and seaborn for static charts, and Plotly for interactive maps.
-- requests for API access and data retrieval.
-- A Jupyter notebook orchestrates data downloading, cleaning, analysis, and visualization.
-- Optional: Tableau or Power BI dashboard for interactive exploration.
+## Technical Stack
 
-**Business Value**
+- **Data Source:** City of Toronto CKAN API (package ID: `2e54bc0e-4399-4076-b717-351df5918ae7`)
+- **Data Ingestion:** Python, requests, zipfile (downloads and extracts ZIP/CSV programmatically)
+- **Data Processing:** pandas, NumPy (date parsing, feature engineering, missing value handling)
+- **Visualization:** Plotly (interactive HTML charts), matplotlib/seaborn (static heatmap), Folium (interactive map)
+- **Machine Learning:** scikit-learn LinearRegression (demand forecasting)
+- **Geocoding:** FSA (Forward Sortation Area) postal code lookup table for 96 Toronto neighborhoods
+- **Error Handling:** Structured try/except for network, ZIP, data, and schema errors
+- **Local Fallback:** Auto-saves downloaded data to `./data/` for offline use
 
-By analysing 311 data, the city can identify the most common issues and geographic hotspots, enabling targeted interventions. Understanding seasonal patterns helps anticipate service demand and allocate crews accordingly. Insights from this analysis support data-driven policy decisions and improve resident satisfaction.
+## Project Structure
 
-**Approach and Key Findings**
+```
+toronto-311-analysis/
+├── analysis.py              # Main analysis script
+├── README.md                # This file
+├── requirements.txt         # Python dependencies
+├── data/                    # Downloaded CSV data (auto-generated)
+│   └── SR2025.csv
+└── images/                  # Generated visualizations
+    ├── top_request_types.html
+    ├── monthly_volume.html
+    ├── hourly_volume.html
+    ├── demand_heatmap.png
+    ├── ward_breakdown.html
+    ├── division_workload.html
+    ├── 311_heatmap.html
+    ├── outlier_detection.html
+    ├── correlation_heatmap.html
+    ├── ward_issue_heatmap.html
+    ├── ward_comparison.html
+    ├── status_distribution.html
+    └── pothole_forecast.html
+```
 
-1. **Data Acquisition** – Use the CKAN API to download the latest 311 service request records. Parse timestamps into datetime objects and select relevant fields such as request type, status, and location.
-2. **Cleaning and Categorization** – Handle missing values, standardise request categories, and derive additional features such as year, month, weekday, and season.
-3. **Exploratory Analysis** – Identify the most frequent service request types and compute monthly counts to reveal seasonal trends. Analyse status distribution (Initiated, In Progress, Closed) and average resolution times.
-4. **Geospatial Analysis** – Map requests by latitude and longitude using Plotly or geopandas to highlight neighbourhoods with high concentrations of complaints.
-5. **Visualization** – Produce bar charts of top request types, line charts showing monthly volume, and interactive heat maps. A dashboard summarises key metrics for stakeholders.
+## How to Run
 
-**Visualisations**
+```bash
+# Clone the repository
+git clone https://github.com/jibrankazi/data-analytics-portfolio.git
+cd data-analytics-portfolio/toronto-311-analysis
 
-- Bar plot of top 10 service request types.
-- Line chart of monthly service request volume.
-- Status distribution chart.
-- Choropleth or heat map of requests by neighbourhood.
-- Optional interactive dashboard link.
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the analysis
+python analysis.py
+```
+
+The script will automatically download the 2025 dataset from Toronto's open data portal on first run and save a local copy in the `data/` folder. Subsequent runs will use the local copy for faster execution.
+
+## Data Notes
+
+- The dataset covers ALL service request channels combined (phone, app, email, web). No channel breakdown is available in the open data.
+- Geographic coordinates are not included in the dataset. This project uses a built-in FSA (Forward Sortation Area) postal code lookup table to geocode requests to approximate neighborhood coordinates.
+- The 2025 dataset provides a full 12-month view, which is essential for identifying seasonal patterns and planning staffing levels.
+
+## Author
+
+**Jibran Kazi, PMP**
+- GitHub: [github.com/jibrankazi](https://github.com/jibrankazi)
+- LinkedIn: [linktr.ee/jibrankazi](https://linktr.ee/jibrankazi)
