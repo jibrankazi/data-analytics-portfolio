@@ -1,10 +1,6 @@
 """
-Toronto 311 Service Request Analysis
-
-This script downloads and analyzes service request data from the City of Toronto's open data portal.
-It uses the CKAN API to locate the most recent resource, loads the data into pandas,
-processes timestamps, categorizes request types, and generates visualizations
-including bar charts and maps.
+Toronto 311 Service Request Analysis (2025) - Complete Notebook
+Full-year analysis: charts, heatmaps, ward breakdown, correlation, outlier detection, forecasting
 """
 
 import pandas as pd
@@ -15,265 +11,376 @@ import io
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
-import os # Import the os module for path operations
+import folium
+from folium.plugins import HeatMap
+from sklearn.linear_model import LinearRegression
+import os
+import warnings
+warnings.filterwarnings('ignore')
 
-# CKAN base URL for Toronto open data
+OUTPUT_DIR = './images'
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs('./data', exist_ok=True)
+
 CKAN_BASE = "https://ckan0.cf.opendata.inter.prod-toronto.ca"
 
+TORONTO_FSA_COORDS = {
+    'M1B': (43.8067, -79.1944), 'M1C': (43.7845, -79.1605), 'M1E': (43.7636, -79.1887),
+    'M1G': (43.7710, -79.2169), 'M1H': (43.7731, -79.2395), 'M1J': (43.7448, -79.2395),
+    'M1K': (43.7279, -79.2620), 'M1L': (43.7112, -79.2845), 'M1M': (43.7164, -79.2395),
+    'M1N': (43.6927, -79.2648), 'M1P': (43.7574, -79.2730), 'M1R': (43.7500, -79.2956),
+    'M1S': (43.7942, -79.2620), 'M1T': (43.7816, -79.3040), 'M1V': (43.8153, -79.2845),
+    'M1W': (43.7995, -79.3183), 'M1X': (43.8361, -79.2056), 'M2H': (43.8037, -79.3549),
+    'M2J': (43.7785, -79.3465), 'M2K': (43.7869, -79.3857), 'M2L': (43.7574, -79.3746),
+    'M2M': (43.7890, -79.4082), 'M2N': (43.7700, -79.4082), 'M2P': (43.7527, -79.4082),
+    'M2R': (43.7827, -79.4421), 'M3A': (43.7532, -79.3296), 'M3B': (43.7459, -79.3521),
+    'M3C': (43.7258, -79.3408), 'M3H': (43.7543, -79.4421), 'M3J': (43.7679, -79.4872),
+    'M3K': (43.7374, -79.4647), 'M3L': (43.7390, -79.5097), 'M3M': (43.7279, -79.4985),
+    'M3N': (43.7616, -79.5210), 'M4A': (43.7258, -79.3183), 'M4B': (43.7069, -79.3070),
+    'M4C': (43.6953, -79.3183), 'M4E': (43.6763, -79.2930), 'M4G': (43.7090, -79.3634),
+    'M4H': (43.7048, -79.3465), 'M4J': (43.6848, -79.3408), 'M4K': (43.6795, -79.3521),
+    'M4L': (43.6689, -79.3155), 'M4M': (43.6595, -79.3409), 'M4N': (43.7280, -79.3888),
+    'M4P': (43.7127, -79.3888), 'M4R': (43.7153, -79.4057), 'M4S': (43.7043, -79.3888),
+    'M4T': (43.6895, -79.3831), 'M4V': (43.6864, -79.3972), 'M4W': (43.6795, -79.3747),
+    'M4X': (43.6679, -79.3676), 'M4Y': (43.6658, -79.3831), 'M5A': (43.6543, -79.3606),
+    'M5B': (43.6572, -79.3789), 'M5C': (43.6515, -79.3733), 'M5E': (43.6447, -79.3676),
+    'M5G': (43.6573, -79.3873), 'M5H': (43.6501, -79.3831), 'M5J': (43.6405, -79.3817),
+    'M5K': (43.6472, -79.3817), 'M5L': (43.6487, -79.3789), 'M5M': (43.7332, -79.4197),
+    'M5N': (43.7111, -79.4197), 'M5P': (43.6969, -79.4113), 'M5R': (43.6727, -79.4057),
+    'M5S': (43.6627, -79.3972), 'M5T': (43.6532, -79.3958), 'M5V': (43.6289, -79.3944),
+    'M5W': (43.6464, -79.3845), 'M5X': (43.6481, -79.3817), 'M6A': (43.7185, -79.4478),
+    'M6B': (43.7090, -79.4478), 'M6C': (43.6937, -79.4281), 'M6E': (43.6890, -79.4506),
+    'M6G': (43.6700, -79.4225), 'M6H': (43.6690, -79.4422), 'M6J': (43.6479, -79.4197),
+    'M6K': (43.6368, -79.4281), 'M6L': (43.7137, -79.4900), 'M6M': (43.6911, -79.4760),
+    'M6N': (43.6731, -79.4760), 'M6P': (43.6616, -79.4647), 'M6R': (43.6489, -79.4564),
+    'M6S': (43.6515, -79.4760), 'M7A': (43.6621, -79.3920), 'M7Y': (43.6627, -79.3214),
+    'M8V': (43.6056, -79.5013), 'M8W': (43.6024, -79.5434), 'M8X': (43.6536, -79.5069),
+    'M8Y': (43.6363, -79.4985), 'M8Z': (43.6289, -79.5210), 'M9A': (43.6678, -79.5322),
+    'M9B': (43.6509, -79.5547), 'M9C': (43.6435, -79.5772), 'M9L': (43.7564, -79.5547),
+    'M9M': (43.7248, -79.5434), 'M9N': (43.7064, -79.5182), 'M9P': (43.6964, -79.5322),
+    'M9R': (43.6889, -79.5547), 'M9V': (43.7395, -79.5884), 'M9W': (43.7064, -79.5941),
+}
 
-def get_package_show(package_id: str):
-    """Call the CKAN package_show endpoint and return the JSON response."""
+# ============================================================
+# CELL 1: LOAD DATA
+# ============================================================
+def load_data_2025(package_id='2e54bc0e-4399-4076-b717-351df5918ae7'):
+    local_csv = './data/SR2025.csv'
+    if os.path.exists(local_csv):
+        print(f"Loading from local: {local_csv}")
+        return pd.read_csv(local_csv, on_bad_lines='skip', encoding='latin-1')
+    print("Downloading 2025 data...")
     url = f"{CKAN_BASE}/api/3/action/package_show?id={package_id}"
-    response = requests.get(url)
-    response.raise_for_status() # Raise an exception for HTTP errors
-    return response.json()
-
-
-def get_latest_resource_url(package_json: dict) -> str:
-    """Identify the latest yearly ZIP resource for the service requests dataset and return its URL."""
-    resources = package_json['result']['resources']
-    
-    # Debugging: Print all resource names to inspect
-    print("Available resources:")
-    for r in resources:
-        print(f"- Name: {r.get('name')}, Format: {r.get('format')}, URL: {r.get('url')}")
-
-    # Filter for resources that have format 'ZIP' and contain '311' or 'service request' in their name
-    year_resources = [
-        r for r in resources 
-        if r.get('format', '').lower() == 'zip' and 
-           ('311' in r.get('name', '').lower() or 'service request' in r.get('name', '').lower())
-    ]
-    
-    if not year_resources:
-        # Fallback: If no specific '311' or 'service request' zip is found, try to find any zip file.
-        print("No specific '311' or 'service request' ZIP found. Attempting to find any ZIP resource.")
-        year_resources = [r for r in resources if r.get('format', '').lower() == 'zip']
-        
-        if not year_resources:
-            raise ValueError("No relevant ZIP resources found in the package.")
-    
-    # Sort by name, assuming the name contains the year in a sortable format (e.g., '2023_311_data.zip')
-    latest = sorted(year_resources, key=lambda x: x.get('name', ''), reverse=True)[0]
-    return latest['url']
-
-
-def load_latest_data(package_id: str = '2e54bc0e-4399-4076-b717-351df5918ae7') -> pd.DataFrame:
-    """Download the most recent 311 service request data and return it as a pandas DataFrame."""
-    print(f"Fetching package info for ID: {package_id}")
-    package_json = get_package_show(package_id)
-    print("Identifying latest resource URL...")
-    resource_url = get_latest_resource_url(package_json)
-    print(f"Downloading data from: {resource_url}")
-    response = requests.get(resource_url)
-    response.raise_for_status() # Raise an exception for HTTP errors
-    
-    print("Extracting CSV from ZIP file...")
-    z = zipfile.ZipFile(io.BytesIO(response.content))
-    csv_names = [name for name in z.namelist() if name.lower().endswith('.csv')]
-    if not csv_names:
-        raise ValueError("No CSV file found in the downloaded ZIP archive.")
-    csv_name = csv_names[0] # Assuming there's only one CSV or the first one is the correct one
-    
-    print(f"Loading {csv_name} into DataFrame...")
-    df = pd.read_csv(z.open(csv_name))
-    print("Data loaded successfully.")
+    pkg = requests.get(url, timeout=30).json()
+    res_url = None
+    for r in pkg['result']['resources']:
+        if '2025' in r.get('name', '') and r.get('format', '').lower() == 'zip':
+            res_url = r['url']
+            break
+    resp = requests.get(res_url, timeout=60)
+    z = zipfile.ZipFile(io.BytesIO(resp.content))
+    csv_name = [n for n in z.namelist() if n.endswith('.csv')][0]
+    df = pd.read_csv(z.open(csv_name), on_bad_lines='skip', encoding='latin-1')
+    df.to_csv(local_csv, index=False)
     return df
 
+print("=" * 60)
+print("TORONTO 311 SERVICE REQUEST ANALYSIS (2025)")
+print("=" * 60)
 
-def preprocess(df: pd.DataFrame) -> pd.DataFrame:
-    """Prepare the dataframe for analysis by parsing dates and deriving additional features."""
-    print("Preprocessing data...")
-    print(f"DataFrame columns: {df.columns.tolist()}")
+df = load_data_2025()
+print(f"Total Records: {len(df):,}")
+print(f"Columns: {df.columns.tolist()}")
+print(f"\nFirst 5 rows:")
+print(df.head().to_string())
 
-    df = df.copy()
-    
-    # --- UPDATED: Use actual column names from the provided output ---
-    DATE_COL = 'Creation Date'
-    TYPE_COL = 'Service Request Type'
-    STATUS_COL = 'Status' # New column for status distribution
-    LAT_COL = 'Latitude' # These are not present in the current dataset
-    LON_COL = 'Longitude' # These are not present in the current dataset
+# ============================================================
+# CELL 2: PREPROCESS
+# ============================================================
+df['created_date'] = pd.to_datetime(df['Creation Date'], errors='coerce')
+df = df.dropna(subset=['created_date'])
+df['year'] = df['created_date'].dt.year
+df['month'] = df['created_date'].dt.month_name()
+df['month_num'] = df['created_date'].dt.month
+df['hour'] = df['created_date'].dt.hour
+df['day_name'] = df['created_date'].dt.day_name()
+df['date'] = df['created_date'].dt.date
 
-    # Check if the required columns exist and assign them
-    if DATE_COL in df.columns:
-        df['created_date'] = pd.to_datetime(df[DATE_COL], errors='coerce')
-        df = df.dropna(subset=['created_date']) # Drop rows where date parsing failed
-        df['year'] = df['created_date'].dt.year
-        df['month'] = df['created_date'].dt.to_period('M')
-        df['week_day'] = df['created_date'].dt.day_name()
-    else:
-        print(f"Warning: Column '{DATE_COL}' not found in DataFrame. Date-related features will be missing.")
-        df['created_date'] = pd.NaT
-        df['year'] = np.nan
-        df['month'] = pd.NaT
-        df['week_day'] = np.nan
-        
-    if TYPE_COL in df.columns:
-        df['request_type'] = df[TYPE_COL]
-    else:
-        print(f"Warning: Column '{TYPE_COL}' not found in DataFrame. Request type will be 'Unknown'.")
-        df['request_type'] = 'Unknown'
+print(f"\nDate Range: {df['created_date'].min().strftime('%Y-%m-%d')} to {df['created_date'].max().strftime('%Y-%m-%d')}")
+print(f"Years in data: {sorted(df['year'].unique())}")
+print(f"Months covered: {df['month_num'].nunique()}")
+print(f"Unique Request Types: {df['Service Request Type'].nunique()}")
+print(f"Unique Wards: {df['Ward'].nunique()}")
 
-    if STATUS_COL in df.columns:
-        df['status'] = df[STATUS_COL]
-    else:
-        print(f"Warning: Column '{STATUS_COL}' not found in DataFrame. Status distribution cannot be plotted.")
-        df['status'] = 'Unknown'
-        
-    # Handle missing Latitude/Longitude columns for mapping
-    if LAT_COL not in df.columns or LON_COL not in df.columns:
-        print(f"Note: Columns '{LAT_COL}' or '{LON_COL}' are not found in this dataset. The interactive map cannot be created.")
-        # Ensure these columns exist, even if filled with NaN, to prevent KeyError in create_map
-        df[LAT_COL] = np.nan
-        df[LON_COL] = np.nan
-    else:
-        # Ensure Latitude and Longitude are numeric if they exist
-        df[LAT_COL] = pd.to_numeric(df[LAT_COL], errors='coerce')
-        df[LON_COL] = pd.to_numeric(df[LON_COL], errors='coerce')
-        
-    print("Preprocessing complete.")
-    return df
+# Check for source/channel columns
+possible_source_cols = [c for c in df.columns if 'source' in c.lower() or 'method' in c.lower() or 'channel' in c.lower()]
+print(f"\nColumns containing 'Source', 'Method', or 'Channel': {possible_source_cols if possible_source_cols else 'NONE FOUND'}")
+print("Note: This dataset covers ALL channels (phone, app, email, web) combined. No channel breakdown available.")
 
+# ============================================================
+# CELL 3: TOP 15 SERVICE REQUEST TYPES
+# ============================================================
+print("\n--- 1. Top 15 Service Request Types ---")
+top_types = df['Service Request Type'].value_counts().nlargest(15).reset_index()
+top_types.columns = ['Service Request Type', 'count']
 
-def plot_top_types(df: pd.DataFrame, n: int = 10) -> None:
-    """Generate and save a bar chart of the most common service request types."""
-    print(f"Generating top {n} request types plot...")
-    if 'request_type' not in df.columns or df['request_type'].empty or df['request_type'].eq('Unknown').all():
-        print("Cannot plot top types: 'request_type' column is missing, empty, or all values are 'Unknown'.")
-        return
+fig_types = px.bar(top_types, x='count', y='Service Request Type', orientation='h',
+                   title='Top 15 Service Request Types - Toronto 311 (2025)',
+                   labels={'count': 'Number of Requests'},
+                   color='count', color_continuous_scale='Viridis')
+fig_types.update_layout(yaxis={'categoryorder': 'total ascending'}, showlegend=False)
+fig_types.write_html(f'{OUTPUT_DIR}/top_request_types.html')
+print("Saved: top_request_types.html")
 
-    top_counts = df['request_type'].value_counts().head(n)
-    if top_counts.empty:
-        print("No data to plot for top request types.")
-        return
+# ============================================================
+# CELL 4: STATUS DISTRIBUTION (PIE)
+# ============================================================
+print("\n--- 2. Status Distribution ---")
+status_counts = df['Status'].value_counts().reset_index()
+status_counts.columns = ['Status', 'count']
 
-    plt.figure(figsize=(10, 6))
-    sns.barplot(x=top_counts.values, y=top_counts.index, palette='viridis', hue=top_counts.index, legend=False)
-    plt.xlabel('Number of Requests')
-    plt.ylabel('Service Request Type')
-    plt.title(f'Top {n} Service Request Types')
-    plt.tight_layout()
-    plt.savefig('./images/top_request_types.png')
-    plt.close()
-    print("Top request types plot saved.")
+fig_status = px.pie(status_counts, values='count', names='Status',
+                    title='Service Request Status Distribution - Toronto 311 (2025)',
+                    color_discrete_sequence=px.colors.qualitative.Set2)
+fig_status.write_html(f'{OUTPUT_DIR}/status_distribution.html')
+print("Saved: status_distribution.html")
+print(status_counts.to_string(index=False))
 
+# ============================================================
+# CELL 5: MONTHLY VOLUME TREND
+# ============================================================
+print("\n--- 3. Monthly Volume Trend ---")
+month_order = ['January', 'February', 'March', 'April', 'May', 'June',
+               'July', 'August', 'September', 'October', 'November', 'December']
+monthly_vol = df['month'].value_counts().reindex(month_order).reset_index()
+monthly_vol.columns = ['month', 'count']
 
-def plot_monthly_trend(df: pd.DataFrame) -> None:
-    """Plot and save a line chart showing the volume of requests per month."""
-    print("Generating monthly trend plot...")
-    if 'month' not in df.columns or df['month'].empty or df['month'].isnull().all():
-        print("Cannot plot monthly trend: 'month' column is missing, empty, or all values are NaN.")
-        return
+fig_month = px.line(monthly_vol, x='month', y='count', markers=True,
+                    title='Monthly Service Request Volume - Toronto 311 (2025)',
+                    labels={'month': 'Month', 'count': 'Total Requests'})
+fig_month.write_html(f'{OUTPUT_DIR}/monthly_volume.html')
+print("Saved: monthly_volume.html")
+peak_m = monthly_vol.loc[monthly_vol['count'].idxmax()]
+low_m = monthly_vol.loc[monthly_vol['count'].idxmin()]
+print(f"  Peak: {peak_m['month']} ({peak_m['count']:,.0f})")
+print(f"  Lowest: {low_m['month']} ({low_m['count']:,.0f})")
 
-    monthly_counts = df.groupby('month').size().reset_index(name='count')
-    if monthly_counts.empty:
-        print("No data to plot for monthly trend.")
-        return
+# ============================================================
+# CELL 6: HOURLY VOLUME (SHIFT PLANNING)
+# ============================================================
+print("\n--- 4. Hourly Volume (Shift Planning) ---")
+hourly_vol = df['hour'].value_counts().sort_index().reset_index()
+hourly_vol.columns = ['hour', 'count']
 
-    monthly_counts['month'] = monthly_counts['month'].astype(str)
-    plt.figure(figsize=(10, 6))
-    sns.lineplot(x='month', y='count', data=monthly_counts, marker='o')
-    plt.xticks(rotation=45)
-    plt.xlabel('Month')
-    plt.ylabel('Number of Requests')
-    plt.title('Monthly Service Request Volume')
-    plt.tight_layout()
-    plt.savefig('./images/monthly_volume.png')
-    plt.close()
-    print("Monthly trend plot saved.")
+fig_hour = px.bar(hourly_vol, x='hour', y='count',
+                  title='Request Volume by Hour of Day - Toronto 311 (2025)',
+                  labels={'hour': 'Hour (24h)', 'count': 'Total Requests'},
+                  color='count', color_continuous_scale='YlOrRd')
+fig_hour.write_html(f'{OUTPUT_DIR}/hourly_volume.html')
+print("Saved: hourly_volume.html")
+peak_h = hourly_vol.loc[hourly_vol['count'].idxmax()]
+print(f"  Peak Hour: {int(peak_h['hour']):02d}:00 ({peak_h['count']:,.0f} requests)")
 
+# ============================================================
+# CELL 7: DAY-HOUR DEMAND HEATMAP
+# ============================================================
+print("\n--- 5. Day-Hour Demand Heatmap ---")
+day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+df['day_name'] = pd.Categorical(df['day_name'], categories=day_order, ordered=True)
+heatmap_data = df.groupby(['day_name', 'hour']).size().reset_index(name='count')
+heatmap_pivot = heatmap_data.pivot(index='day_name', columns='hour', values='count').fillna(0)
 
-def plot_status_distribution(df: pd.DataFrame) -> None:
-    """Generate and save a bar chart of the service request status distribution."""
-    print("Generating status distribution plot...")
-    if 'status' not in df.columns or df['status'].empty or df['status'].eq('Unknown').all():
-        print("Cannot plot status distribution: 'status' column is missing, empty, or all values are 'Unknown'.")
-        return
+plt.figure(figsize=(16, 5))
+sns.heatmap(heatmap_pivot, cmap='YlOrRd', linewidths=0.5, linecolor='white',
+            cbar_kws={'label': 'Number of Requests'})
+plt.xlabel('Hour of Day')
+plt.ylabel('')
+plt.title('Service Request Volume by Day and Hour - Toronto 311 (2025)\nUse this for shift coverage and staffing')
+plt.tight_layout()
+plt.savefig(f'{OUTPUT_DIR}/demand_heatmap.png', dpi=150)
+plt.close()
+print("Saved: demand_heatmap.png")
 
-    status_counts = df['status'].value_counts()
-    if status_counts.empty:
-        print("No data to plot for status distribution.")
-        return
+# ============================================================
+# CELL 8: WARD BREAKDOWN
+# ============================================================
+print("\n--- 6. Request Volume by Ward ---")
+ward_counts = df['Ward'].value_counts().reset_index()
+ward_counts.columns = ['Ward', 'count']
 
-    plt.figure(figsize=(8, 5))
-    sns.barplot(x=status_counts.index, y=status_counts.values, palette='plasma', hue=status_counts.index, legend=False)
-    plt.xlabel('Status')
-    plt.ylabel('Number of Requests')
-    plt.title('Service Request Status Distribution')
-    plt.xticks(rotation=45, ha='right')
-    plt.tight_layout()
-    plt.savefig('./images/status_distribution.png')
-    plt.close()
-    print("Status distribution plot saved.")
+fig_ward = px.bar(ward_counts, x='Ward', y='count',
+                  title='Request Volume by Ward - Toronto 311 (2025)',
+                  labels={'count': 'Number of Requests'},
+                  color='count', color_continuous_scale='Blues')
+fig_ward.update_xaxes(tickangle=45)
+fig_ward.write_html(f'{OUTPUT_DIR}/ward_breakdown.html')
+print("Saved: ward_breakdown.html")
+print(f"  Top Ward: {ward_counts.iloc[0]['Ward']} ({ward_counts.iloc[0]['count']:,.0f})")
 
+# ============================================================
+# CELL 9: DIVISION WORKLOAD
+# ============================================================
+print("\n--- 7. Division Workload ---")
+division_counts = df['Division'].value_counts().reset_index()
+division_counts.columns = ['Division', 'Request Count']
+total = division_counts['Request Count'].sum()
+division_counts['Percentage'] = (division_counts['Request Count'] / total * 100).round(2)
 
-def create_map(df: pd.DataFrame) -> None:
-    """Create an interactive density map of service requests using Plotly and save it as an HTML file."""
-    print("Generating interactive density map...")
-    # The preprocess function now ensures these columns exist, even if filled with NaN.
-    # We only proceed if there's actual non-NaN geographical data.
-    df_geo = df.dropna(subset=['Latitude', 'Longitude'])
-    
-    if df_geo.empty:
-        print("No valid geographical data (Latitude/Longitude) to create map after dropping NaNs. Map will not be generated.")
-        return
-        
-    # Ensure Latitude and Longitude are numeric (already done in preprocess, but good to be safe)
-    df_geo['Latitude'] = pd.to_numeric(df_geo['Latitude'], errors='coerce')
-    df_geo['Longitude'] = pd.to_numeric(df_geo['Longitude'], errors='coerce')
-    df_geo = df_geo.dropna(subset=['Latitude', 'Longitude'])
+fig_div = px.bar(division_counts, x='Request Count', y='Division', orientation='h',
+                 text='Percentage',
+                 title='Total Service Requests by City Division - Toronto 311 (2025)',
+                 labels={'Request Count': 'Number of Requests'})
+fig_div.update_traces(texttemplate='%{text}%', textposition='outside')
+fig_div.update_layout(yaxis={'categoryorder': 'total ascending'}, margin=dict(l=200))
+fig_div.write_html(f'{OUTPUT_DIR}/division_workload.html')
+print("Saved: division_workload.html")
+print(division_counts.to_string(index=False))
 
-    if df_geo.empty:
-        print("No numeric geographical data after conversion and dropping NaNs to create map. Map will not be generated.")
-        return
+# ============================================================
+# CELL 10: FOLIUM HEATMAP
+# ============================================================
+print("\n--- 8. Interactive Heatmap ---")
+df_geo = df.dropna(subset=['First 3 Chars of Postal Code'])
+geo_counts = df_geo['First 3 Chars of Postal Code'].value_counts().reset_index()
+geo_counts.columns = ['FSA', 'count']
 
-    # Calculate mean only if df_geo is not empty
-    center_lat = df_geo['Latitude'].mean() if not df_geo['Latitude'].empty else 43.6532
-    center_lon = df_geo['Longitude'].mean() if not df_geo['Longitude'].empty else -79.3832
+heat_data = []
+for _, row in geo_counts.iterrows():
+    fsa = str(row['FSA']).strip().upper()
+    if fsa in TORONTO_FSA_COORDS:
+        lat, lon = TORONTO_FSA_COORDS[fsa]
+        heat_data.append([lat, lon, row['count']])
 
-    fig = px.density_mapbox(df_geo, lat='Latitude', lon='Longitude',
-                            radius=5,
-                            center=dict(lat=center_lat, lon=center_lon),
-                            zoom=10,
-                            mapbox_style='stamen-terrain',
-                            title='Service Request Density Map')
-    fig.write_html('./images/311_density_map.html')
-    print("Interactive density map saved.")
+m = folium.Map(location=[43.7, -79.4], zoom_start=11, tiles='OpenStreetMap')
+HeatMap(heat_data, radius=25, blur=15, max_zoom=13).add_to(m)
+m.save(f'{OUTPUT_DIR}/311_heatmap.html')
+print(f"Saved: 311_heatmap.html ({len(heat_data)} FSA areas)")
 
+# ============================================================
+# CELL 11: SPIKE / EVENT DAY DETECTION
+# ============================================================
+print("\n--- 9. Top 10 Spike Days (Weather/Event Triggers) ---")
+daily_issue = df.groupby(['date', 'Service Request Type']).size().reset_index(name='daily_count')
+top_spikes = daily_issue.sort_values('daily_count', ascending=False).head(10)
+print(top_spikes.to_string(index=False))
 
-def main() -> None:
-    """Main function to run the analysis workflow."""
-    # Ensure the images directory exists
-    output_dir = './images'
-    if not os.path.exists(output_dir):
-        print(f"Creating output directory: {output_dir}")
-        try:
-            os.makedirs(output_dir)
-        except PermissionError:
-            print(f"Permission denied: Could not create directory '{output_dir}'.")
-            print("Please ensure the script has write permissions to the current directory, or create the 'images' folder manually.")
-            return # Exit if directory cannot be created due to permissions
-    
-    try:
-        df = load_latest_data()
-        df = preprocess(df)
-        plot_top_types(df)
-        plot_monthly_trend(df)
-        plot_status_distribution(df) # Call the new status distribution plot function
-        create_map(df)
-        print('311 analysis complete. Visualizations saved to images folder.')
-    except requests.exceptions.RequestException as e:
-        print(f"Network or API error: {e}. Please check your internet connection or the CKAN API status.")
-    except zipfile.BadZipFile as e:
-        print(f"Error unzipping file: {e}. The downloaded file might be corrupted.")
-    except ValueError as e:
-        print(f"Data processing error: {e}. Check data structure or resource availability.")
-    except KeyError as e:
-        print(f"Missing expected column: {e}. The dataset structure might have changed.")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+# ============================================================
+# CELL 12: OUTLIER DETECTION (Z-SCORE)
+# ============================================================
+print("\n--- 10. Daily Volume Outlier Detection ---")
+daily_total = df.groupby('date').size().reset_index(name='total_requests')
+daily_total['z_score'] = (daily_total['total_requests'] - daily_total['total_requests'].mean()) / daily_total['total_requests'].std()
+outliers = daily_total[daily_total['z_score'].abs() > 2]
 
+fig_outliers = px.scatter(daily_total, x='date', y='total_requests', color='z_score',
+                          title='Daily Volume with Outlier Detection (Z-Score > 2) - Toronto 311 (2025)',
+                          labels={'total_requests': 'Total Daily Requests', 'date': 'Date'},
+                          color_continuous_scale='RdYlGn_r')
+fig_outliers.write_html(f'{OUTPUT_DIR}/outlier_detection.html')
+print(f"Saved: outlier_detection.html")
+print(f"  Outlier days detected (z > 2): {len(outliers)}")
+if len(outliers) > 0:
+    print(f"  Highest spike: {outliers.loc[outliers['total_requests'].idxmax(), 'date']} ({outliers['total_requests'].max():,.0f} requests)")
 
-if __name__ == '__main__':
-    main()
+# ============================================================
+# CELL 13: CORRELATION HEATMAP
+# ============================================================
+print("\n--- 11. Request Type Correlation ---")
+top_10_types = df['Service Request Type'].value_counts().nlargest(10).index
+corr_df = df[df['Service Request Type'].isin(top_10_types)]
+corr_pivot = corr_df.groupby(['date', 'Service Request Type']).size().unstack(fill_value=0)
+correlation_matrix = corr_pivot.corr()
+
+fig_corr = px.imshow(correlation_matrix, text_auto='.2f',
+                     title='Correlation Heatmap: Do specific issues trigger together? (2025)',
+                     color_continuous_scale='RdBu_r')
+fig_corr.write_html(f'{OUTPUT_DIR}/correlation_heatmap.html')
+print("Saved: correlation_heatmap.html")
+
+# Top correlated pairs
+corr_unstacked = correlation_matrix.unstack()
+high_corr = corr_unstacked[corr_unstacked < 1.0].sort_values(ascending=False).drop_duplicates()
+print("\nTop 5 Correlated Service Request Pairs:")
+for (type1, type2), val in high_corr.head(5).items():
+    print(f"  {val:.3f}  {type1} <-> {type2}")
+
+# ============================================================
+# CELL 14: WARD x ISSUE HEATMAP
+# ============================================================
+print("\n--- 12. Ward vs Issue Heatmap ---")
+top_wards = df['Ward'].value_counts().nlargest(10).index
+top_issues = df['Service Request Type'].value_counts().nlargest(10).index
+df_filtered = df[df['Ward'].isin(top_wards) & df['Service Request Type'].isin(top_issues)]
+ward_issue_map = pd.crosstab(df_filtered['Ward'], df_filtered['Service Request Type'])
+
+fig_wi = px.imshow(ward_issue_map, text_auto=True, aspect="auto",
+                   labels=dict(x="Request Type", y="Ward", color="Count"),
+                   title="Which issues are reported in which Wards? - Toronto 311 (2025)")
+fig_wi.update_xaxes(side="top", tickangle=45)
+fig_wi.write_html(f'{OUTPUT_DIR}/ward_issue_heatmap.html')
+print("Saved: ward_issue_heatmap.html")
+
+max_issue = ward_issue_map.stack().idxmax()
+print(f"  Most frequent localized issue: '{max_issue[1]}' in '{max_issue[0]}'")
+
+# ============================================================
+# CELL 15: TOP 3 WARD COMPARISON
+# ============================================================
+print("\n--- 13. Top 3 Ward Comparison ---")
+top_3_wards = df['Ward'].value_counts().nlargest(3).index
+df_top_3 = df[df['Ward'].isin(top_3_wards) & df['Service Request Type'].isin(top_issues)]
+comparison = df_top_3.groupby(['Ward', 'Service Request Type']).size().reset_index(name='count')
+
+fig_compare = px.bar(comparison, x='Service Request Type', y='count', color='Ward', barmode='group',
+                     title='Request Type Comparison: Top 3 Most Active Wards (2025)',
+                     labels={'count': 'Number of Requests'})
+fig_compare.update_xaxes(tickangle=45)
+fig_compare.write_html(f'{OUTPUT_DIR}/ward_comparison.html')
+print("Saved: ward_comparison.html")
+
+# ============================================================
+# CELL 16: POTHOLE DEMAND FORECAST
+# ============================================================
+print("\n--- 14. Pothole Request Forecast ---")
+pothole_df = df[df['Service Request Type'].str.contains('Pothole', case=False, na=False)].copy()
+print(f"  Total pothole requests in 2025: {len(pothole_df):,}")
+
+daily_potholes = pothole_df.groupby('date').size().reset_index(name='count')
+daily_potholes['date'] = pd.to_datetime(daily_potholes['date'])
+daily_potholes['date_ordinal'] = daily_potholes['date'].apply(lambda x: x.toordinal())
+
+X = daily_potholes[['date_ordinal']]
+y = daily_potholes['count']
+model = LinearRegression()
+model.fit(X, y)
+
+last_date = daily_potholes['date'].max()
+future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=30, freq='D')
+future_ordinals = np.array([[d.toordinal()] for d in future_dates])
+predictions = np.maximum(model.predict(future_ordinals), 0)
+
+forecast_df = pd.DataFrame({'date': future_dates, 'count': predictions, 'type': 'Forecast'})
+history_df = daily_potholes[['date', 'count']].copy()
+history_df['type'] = 'Actual'
+combined = pd.concat([history_df, forecast_df], ignore_index=True)
+
+fig_pred = px.scatter(combined, x='date', y='count', color='type',
+                      title='Daily Pothole Requests: 2025 Actuals + 30-Day Forecast',
+                      labels={'date': 'Date', 'count': 'Daily Requests', 'type': ''},
+                      color_discrete_map={'Actual': '#1f77b4', 'Forecast': '#ff7f0e'})
+fig_pred.write_html(f'{OUTPUT_DIR}/pothole_forecast.html')
+print("Saved: pothole_forecast.html")
+print(f"  Avg predicted per day (next 30 days): {np.mean(predictions):.1f}")
+
+# ============================================================
+# SUMMARY
+# ============================================================
+print("\n" + "=" * 60)
+print("ANALYSIS COMPLETE - 14 OUTPUTS GENERATED")
+print("=" * 60)
+print(f"Records: {len(df):,}")
+print(f"Date Range: {df['created_date'].min().strftime('%b %d')} to {df['created_date'].max().strftime('%b %d, %Y')}")
+print(f"\nOutput files:")
+for f in sorted(os.listdir(OUTPUT_DIR)):
+    size = os.path.getsize(f'{OUTPUT_DIR}/{f}')
+    print(f"  {f} ({size/1024:.0f} KB)")
