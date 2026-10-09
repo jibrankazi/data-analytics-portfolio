@@ -1,3 +1,5 @@
+> **CI scope (October 2026):** New GitHub Actions checks Python syntax and verifies the bundled Toronto 311 and bank churn CSVs can be loaded. It does **not** run external-data downloads, the five full modeling notebooks, or any live APIs. The Toronto 311 analysis and other portfolio examples remain separate projects.
+
 
 # Data Analytics Portfolio
 
