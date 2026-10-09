@@ -44,6 +44,7 @@ def download_official_feed():
     if len(parsed.entries) < 5:
         raise ValueError(f"PHAC feed returned only {len(parsed.entries)} published entries; cannot establish corpus")
     rows = []
+    rejected_nonofficial_links = 0
     for entry in parsed.entries:
         title = clean_markup(entry.get("title", ""))
         summary = clean_markup(entry.get("summary", entry.get("description", "")))
@@ -52,7 +53,10 @@ def download_official_feed():
             continue
         host = (urlparse(link).hostname or "").lower()
         if not (host == "canada.ca" or host.endswith(".canada.ca")):
-            raise ValueError(f"PHAC source entry does not point to official Canada.ca domain: {link}")
+            # The PHAC feed includes some preview-platform links. Do NOT
+            # treat preview content as published public official messages.
+            rejected_nonofficial_links += 1
+            continue
         dt = entry.get("published_parsed") or entry.get("updated_parsed")
         if dt is None:
             continue
@@ -64,11 +68,11 @@ def download_official_feed():
         raise ValueError("Insufficient genuine and dated PHAC feed entries")
     if not corpus.published_date.str.match(r"^20\d{2}-\d{2}-\d{2}$").all():
         raise ValueError("Invalid date parsing")
-    return corpus, raw
+    return corpus, raw, rejected_nonofficial_links
 
 
 def run(output="public-health-sentiment/results/official_phac_messages"):
-    corpus, raw = download_official_feed()
+    corpus, raw, rejected_nonofficial_links = download_official_feed()
     scorer = SentimentIntensityAnalyzer()
     corpus = corpus.copy()
     corpus["vader_compound_lexical_tone"] = corpus.apply(
@@ -99,6 +103,7 @@ def run(output="public-health-sentiment/results/official_phac_messages"):
         "retrieved_utc": datetime.now(timezone.utc).isoformat(),
         "original_response_sha256": sha256(raw).hexdigest(),
         "real_unique_dated_publisher_entries": int(len(corpus)),
+        "excluded_preview_or_non_canada_dot_ca_links": int(rejected_nonofficial_links),
         "earliest_publication_date": corpus.published_date.min(),
         "latest_publication_date": corpus.published_date.max(),
         "lexical_tone_counts": {str(k): int(v) for k, v in corpus.lexical_category.value_counts().items()},
