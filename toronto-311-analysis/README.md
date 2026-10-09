@@ -1,3 +1,22 @@
+## Real-data execution verification — October 9, 2026
+
+The checked-in **actual 2025 City of Toronto 311 Service Requests CSV** was processed by `python validate_real_311.py`, not by a generated dataset. [Successful workflow and downloadable result JSON](https://github.com/jibrankazi/data-analytics-portfolio/actions/runs/37934694942).
+
+| Verified observation | Actual value |
+| --- | ---: |
+| Rows / valid creation dates | 464,080 / 464,080 |
+| Calendar 2025 service requests | 464,080 |
+| Distinct service request types | 510 |
+| Peak month | February, 53,268 |
+| Peak date | February 19, 2025, 6,153 |
+| Largest request type | Residential Bin Lid Damaged, 24,448 |
+| Completed status rows | 377,628 |
+| Cancelled status rows | 49,009 |
+
+**Conclusions:** February contained the greatest total service request volume in this historical extract. Bin-lid-damage requests were the most frequent request type. These are counts of **submitted municipal service requests across all intake channels**; they must **not** be interpreted as telephone call volumes, labour workload minutes, or proof of a particular staffing requirement. The previous forecasting figures remain unverified by this independent dataset audit. Reproduction requires the provided 2025 CSV or a separately verified official replacement.
+
+---
+
 # Toronto 311 Service Request Analysis (2025)
 
 A full-year analysis of 464,000+ service requests from the City of Toronto's 311 open data portal. Built to demonstrate how municipal service data can support staffing decisions, demand forecasting, and resource allocation.

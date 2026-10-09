@@ -1,0 +1,20 @@
+name: Real 2025 Toronto 311 observations
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  observed-311:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pandas
+      - name: Recalculate all-year actual 311 findings
+        run: python validate_real_311.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-real-311-summary
+          path: toronto-311-analysis/results/verified_real_2025.json
