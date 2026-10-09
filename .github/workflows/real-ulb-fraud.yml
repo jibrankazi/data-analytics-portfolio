@@ -1,0 +1,65 @@
+name: Real ULB anonymized credit-card fraud source-to-heldout model
+on:
+  push:
+    branches: [main]
+    paths:
+      - "fraud-detection-finance/run_real_ulb_fraud.py"
+      - ".github/workflows/real-ulb-fraud.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  original-ulb-fraud-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install genuine OpenML source and evaluation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "numpy<3" pandas "scikit-learn>=1.5,<1.9" matplotlib scipy
+      - name: Download original labeled ULB 2013 card transactions through OpenML, fit and evaluate
+        run: python -u fraud-detection-finance/run_real_ulb_fraud.py
+      - name: Independently check untouched test artifact, fraud counts, models and source
+        run: |
+          python - <<'PY'
+          import json, math
+          from pathlib import Path
+          import pandas as pd
+          root=Path("fraud-detection-finance/results/ulb_real_fraud")
+          data=json.loads((root/"verified_results.json").read_text())
+          a=data["data_contract"]; split=data["split"]
+          assert data["openml_dataset_id"] == 1597
+          assert a["original_rows"] == 284807 and a["original_positive_labels"] == 492
+          assert a["deduplicated_rows"] >= 280000 and 450 <= a["deduplicated_fraud_labels"] <= 492
+          assert not a["time_field_available_from_openml"]
+          assert len(a["source_numeric_values_sha256"]) == 64
+          assert split["train_rows"] + split["validation_rows"] + split["test_rows"] == a["deduplicated_rows"]
+          assert split["train_fraud"]+split["validation_fraud"]+split["test_fraud"] == a["deduplicated_fraud_labels"]
+          assert 50000 <= split["test_rows"] <= 60000
+          assert set(data["models"]) == {"class_prior_baseline","balanced_logistic_regression","histogram_gradient_boosting"}
+          assert data["selected_model"] in ("balanced_logistic_regression","histogram_gradient_boosting")
+          observed=pd.read_csv(root/"heldout_real_ulb_probabilities.csv")
+          assert len(observed) == split["test_rows"]
+          assert observed["deduplicated_original_row_position"].is_unique
+          assert int(observed["original_fraud_label"].sum()) == split["test_fraud"]
+          for model, result in data["models"].items():
+              probs=observed["probability_"+model]
+              assert probs.notna().all() and probs.between(0,1).all()
+              scores=result["untouched_test"]
+              assert 0 <= result["validation_average_precision"] <= 1
+              assert 0 <= result["threshold_selected_on_validation_only"] <= 1
+              assert all(math.isfinite(scores[k]) and 0 <= scores[k] <= 1
+                         for k in ("roc_auc","average_precision_pr_auc","precision_fraud","recall_fraud","f1_fraud"))
+              assert sum(map(sum,scores["confusion_matrix_true_0_1"])) == split["test_rows"]
+          assert (root/"heldout_precision_recall.png").read_bytes()[:8] == bytes.fromhex("89504e470d0a1a0a")
+          print("REAL FRAUD AUDIT PASS: publisher row+fraud counts, duplicate exclusion, 3 real fitted models, validation-only selection and entire untouched test.")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: actual-ULB-2013-fraud-train-validation-test-results
+          path: fraud-detection-finance/results/ulb_real_fraud/
+          if-no-files-found: error
