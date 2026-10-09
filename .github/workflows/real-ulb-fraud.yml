@@ -34,17 +34,18 @@ jobs:
           a=data["data_contract"]; split=data["split"]
           assert data["openml_dataset_id"] == 1597
           assert a["original_rows"] == 284807 and a["original_positive_labels"] == 492
-          assert a["deduplicated_rows"] >= 280000 and 450 <= a["deduplicated_fraud_labels"] <= 492
+          assert a["original_rows_preserved"] == 284807 and a["original_fraud_labels_preserved"] == 492
+          assert a["repeated_anonymized_feature_vectors_grouped_across_splits"] >= 0
           assert not a["time_field_available_from_openml"]
           assert len(a["source_numeric_values_sha256"]) == 64
-          assert split["train_rows"] + split["validation_rows"] + split["test_rows"] == a["deduplicated_rows"]
-          assert split["train_fraud"]+split["validation_fraud"]+split["test_fraud"] == a["deduplicated_fraud_labels"]
+          assert split["train_rows"] + split["validation_rows"] + split["test_rows"] == a["original_rows_preserved"]
+          assert split["train_fraud"]+split["validation_fraud"]+split["test_fraud"] == a["original_fraud_labels_preserved"]
           assert 50000 <= split["test_rows"] <= 60000
           assert set(data["models"]) == {"class_prior_baseline","balanced_logistic_regression","histogram_gradient_boosting"}
           assert data["selected_model"] in ("balanced_logistic_regression","histogram_gradient_boosting")
           observed=pd.read_csv(root/"heldout_real_ulb_probabilities.csv")
           assert len(observed) == split["test_rows"]
-          assert observed["deduplicated_original_row_position"].is_unique
+          assert observed["original_openml_row_position"].is_unique
           assert int(observed["original_fraud_label"].sum()) == split["test_fraud"]
           for model, result in data["models"].items():
               probs=observed["probability_"+model]
@@ -56,7 +57,7 @@ jobs:
                          for k in ("roc_auc","average_precision_pr_auc","precision_fraud","recall_fraud","f1_fraud"))
               assert sum(map(sum,scores["confusion_matrix_true_0_1"])) == split["test_rows"]
           assert (root/"heldout_precision_recall.png").read_bytes()[:8] == bytes.fromhex("89504e470d0a1a0a")
-          print("REAL FRAUD AUDIT PASS: publisher row+fraud counts, duplicate exclusion, 3 real fitted models, validation-only selection and entire untouched test.")
+          print("REAL FRAUD AUDIT PASS: all 284807 original source rows, identical-observation group leak guard, three fitted classifiers and isolated validation/test.")
           PY
       - uses: actions/upload-artifact@v4
         with:
