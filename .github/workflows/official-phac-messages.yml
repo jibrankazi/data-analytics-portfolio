@@ -1,0 +1,49 @@
+name: Official Public Health Agency of Canada message source-and-language audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - "public-health-sentiment/run_official_phac_rss.py"
+      - ".github/workflows/official-phac-messages.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official-canada-agency-text:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install genuine government feed and tone-scoring dependencies
+        run: pip install pandas matplotlib feedparser vaderSentiment
+      - name: Retrieve PHAC original publications and score publisher-authored text
+        run: python public-health-sentiment/run_official_phac_rss.py
+      - name: Check publisher URL, original dated items, actual scores and plot
+        run: |
+          python - <<'PY'
+          import json, pandas as pd
+          from pathlib import Path
+          folder=Path("public-health-sentiment/results/official_phac_messages")
+          result=json.loads((folder/"verified_results.json").read_text())
+          data=pd.read_csv(folder/"original_phac_feed_items_and_lexical_scores.csv")
+          assert result["original_feed_url"]=="https://www.canada.ca/content/dam/phac-aspc/rss/new-eng.xml"
+          assert len(result["original_response_sha256"])==64
+          assert result["real_unique_dated_publisher_entries"]>=5
+          assert len(data)==result["real_unique_dated_publisher_entries"]
+          assert data.official_url.str.startswith(("https://www.canada.ca/","http://www.canada.ca/")).all()
+          assert data.official_url.is_unique
+          assert data.published_date.notna().all()
+          assert data.vader_compound_lexical_tone.between(-1,1).all()
+          assert sum(result["lexical_tone_counts"].values())==len(data)
+          assert "not public sentiment" in result["limits"]
+          assert (folder/"official_phac_published_message_lexical_tone.png").read_bytes()[:8]==bytes.fromhex("89504e470d0a1a0a")
+          print("Validated original PHAC publications, unique dates, lexical scores and aggregate visualization; not tweets")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: observed-phac-publisher-communications-language-audit
+          path: public-health-sentiment/results/official_phac_messages/
+          if-no-files-found: error
