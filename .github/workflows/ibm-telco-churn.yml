@@ -1,0 +1,48 @@
+name: Verified IBM Telco demonstration-dataset churn lifecycle
+on:
+  push:
+    branches: [main]
+    paths:
+      - "bank-churn-analysis/**"
+      - ".github/workflows/ibm-telco-churn.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  telco-example-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install model reproducibility dependencies
+        run: pip install pandas numpy matplotlib scikit-learn
+      - name: Execute full IBM published example to held-out model metrics
+        run: python bank-churn-analysis/run_verified_telco.py
+      - name: Assert source provenance and model evaluation outputs
+        run: |
+          python - <<'PY'
+          import json, math
+          from pathlib import Path
+          root=Path("bank-churn-analysis/results")
+          r=json.loads((root/"verified_results.json").read_text())
+          assert r["dataset_rows"] == 7043
+          assert r["features_excluding_id"] >= 15
+          assert r["data_origin"].startswith("Bundled public IBM demonstration")
+          assert len(r["sha256_bundled_source_csv"]) == 64
+          assert r["split"]["train_rows"] + r["split"]["test_rows"] == r["dataset_rows"]
+          assert set(r["models"]) == {"Prior-probability baseline", "Logistic regression", "Random Forest"}
+          for score in r["models"].values():
+              for key in ("holdout_accuracy", "holdout_balanced_accuracy", "holdout_roc_auc", "holdout_average_precision"):
+                  assert math.isfinite(score[key]) and 0 <= score[key] <= 1
+              assert sum(map(sum, score["confusion_matrix_0_1"])) == r["split"]["test_rows"]
+          assert (root/"holdout_roc.png").read_bytes()[:8] == bytes.fromhex("89504e470d0a1a0a")
+          print("Verified: 7043-row IBM illustrative CSV, leak-safe split, baseline and two held-out fitted models")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-ibm-telco-illustrative-churn-analysis
+          path: bank-churn-analysis/results/
+          if-no-files-found: error
