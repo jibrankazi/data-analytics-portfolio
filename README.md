@@ -1,25 +1,30 @@
+# Data Analytics Portfolio — evidence and real-data status
 
-# Data Analytics Portfolio
+The repository contains several **separate analytics projects**. Their data sources and execution maturity differ. A successful workflow on Toronto 311 data does not verify all the other project scripts.
 
-This repository showcases a collection of five end‑to‑end analytics projects built from publicly available data.  Each project addresses a real‑world question and demonstrates the workflow I follow as a junior data analyst—from acquiring and cleaning the data, through exploratory analysis, modelling and interpretation, to communicating findings with clear narratives and visuals.  All work is organised into separate folders with well‑commented notebooks, raw data (or scripts to download it), images and project‑specific documentation.
+## Independently executed original observations
 
-## Projects
+**Toronto 311 service requests:** `toronto-311-analysis/data/SR2025.csv` contains historical City of Toronto service requests. `validate_real_311.py` audits the original CSV fields, parses 2025 creation dates, summarizes request types and timing, and saves JSON results. [Successful October 9 workflow](https://github.com/jibrankazi/data-analytics-portfolio/actions/runs/37936583459).
 
-| Project | Domain | Brief Description |
+```bash
+pip install pandas
+python validate_real_311.py
+```
+
+Original publisher: [City of Toronto Open Data — 311 Service Requests](https://open.toronto.ca/dataset/311-service-requests-customer-initiated/).
+
+**Scope restriction:** These are service requests from multiple intake channels. They are **not exclusively telephone calls**, and cannot by themselves establish live queue volumes, handling times or staffing.
+
+## Other projects, described without unverified model results
+
+| Project folder | What the repository contains | Evidence boundary |
 | --- | --- | --- |
-| **Heart Disease Risk Prediction** | Healthcare | Predict the presence of heart disease using the Cleveland Clinic subset of the UCI Heart Disease dataset.  Models include K‑Nearest Neighbours and Random Forests; key risk factors are identified. |
-| **Public Health Sentiment Analysis** | Public Communication | Scrape tweets mentioning COVID‑11 vaccines, clean and score sentiment with VADER, and visualise temporal trends and word frequencies. |
-| **Financial Fraud Detection** | Banking & FinTech | Detect fraudulent mobile money transactions using the PaySim simulation dataset.  Address class imbalance with SMOTE and train ensemble models such as Random Forests and XGBoost. |
-| **Bank Customer Churn** | Retail Banking | Analyse the IBM Telco customer churn data to predict which customers are likely to leave and understand the drivers of churn. |
-| **Toronto 311 Service Requests** | Civic Analytics | Pull 311 service request data from Toronto’s Open Data portal, analyse complaint types and patterns, and map hotspots and seasonal trends. |
+| `bank-churn-analysis/` | The **IBM Telco Customer Churn** CSV and analytical Python code | A telecommunications churn dataset, **not real bank account churn** |
+| `fraud-detection-finance/` | PaySim-related financial fraud analysis code | PaySim is a **simulator**, not verified actual customer transaction fraud |
+| `heart-disease-prediction/` | Cleveland Heart Disease analysis script | The checked-in `processed.cleveland.data` file is **empty**; no complete source-data execution was established |
+| `public-health-sentiment/` | Public-health text/sentiment analysis script | Live historical source scraping and complete sentiment evaluation not verified |
+| `toronto-311-analysis/` | Actual 2025 service-request CSV and audited descriptive counts | Public-data descriptive analysis confirmed; individual service outcomes need separate assessment |
 
-## How to Use This Portfolio
+The existence of a script or chart does not prove it was executed successfully on real input. The Toronto 311 CI job is the concrete evidence linked above; the other projects need their own validated data contracts, provenance, full executions and artifacts before being called end-to-end.
 
-Navigate into each project folder to find:
-
-* A **README** explaining the business context, problem statement, data source, tools, approach and findings.
-* A **notebooks** directory containing a Python script or Jupyter notebook with the full analysis.  These scripts are written in a clear, step‑by‑step manner with comments that explain my reasoning at each stage.
-* A **data** directory with either the raw data or a script to download it (depending on licensing restrictions).  For large or restricted datasets, you may need to run the download script yourself.
-* An **images** directory storing plots generated during the analysis.  Feel free to browse these for a quick visual overview.
-
-The code has been written to be reproducible and easy to follow.  To replicate an analysis, create a Python environment with the required libraries (see the imports in each script) and run the notebook from top to bottom.  Where external downloads are required (e.g. scraping tweets or fetching 311 data), network connectivity is necessary.
+The scripts may use simulated records in mathematical tests. Such fixtures must never be reported as measured economic or medical outcomes. No confidential municipal or banking data are published here.
