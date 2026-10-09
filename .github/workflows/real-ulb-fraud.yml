@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - "fraud-detection-finance/run_real_ulb_fraud.py"
+      - "fraud-detection-finance/notebooks/fraud_detection.py"
       - ".github/workflows/real-ulb-fraud.yml"
   workflow_dispatch:
 permissions:
@@ -22,7 +23,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "numpy<3" pandas "scikit-learn>=1.5,<1.9" matplotlib scipy
       - name: Download original labeled ULB 2013 card transactions through OpenML, fit and evaluate
-        run: python -u fraud-detection-finance/run_real_ulb_fraud.py
+        run: python -u fraud-detection-finance/notebooks/fraud_detection.py
       - name: Independently check untouched test artifact, fraud counts, models and source
         run: |
           python - <<'PY'
