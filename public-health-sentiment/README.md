@@ -1,42 +1,44 @@
-## Public Health Sentiment Analysis
+# Public Health Agency of Canada — verified publisher-message language analysis
 
-### Overview
+This module now includes a **fully executed, original-source** audit of the [Public Health Agency of Canada's official RSS/Atom updates](https://www.canada.ca/en/public-health/corporate/stay-informed-stay-connected/public-health-updates.html).
 
-During the COVID‑19 pandemic, public perception of vaccines has influenced uptake and ultimately impacted community health outcomes.  This project analyses social media chatter to understand how people feel about vaccination.  Tweets mentioning keywords such as “COVID vaccine” or brand names are scraped in real time using the [`snscrape`](https://github.com/JustAnotherArchivist/snscrape) library.  After cleaning and preprocessing the text, sentiment is scored using the VADER lexicon to gauge whether messages are positive, neutral or negative.  Temporal and topical trends are then explored through visualisations and dashboards.
+**This is not a social-media public opinion survey.** Agency-authored announcements are not representative of vaccination attitudes, vaccine hesitancy, misinformation in social networks or population sentiment. The `VADER` lexicon measures basic *wording polarity*, not correctness or public response.
 
-### Problem Statement
+## Actual end-to-end execution (October 9, 2026)
 
-Public health campaigns often rely on social media to disseminate information and combat misinformation.  Understanding the prevailing sentiment towards vaccines helps health agencies tailor messaging, identify misinformation hotspots and allocate resources.  The objective is to measure sentiment over time and across platforms and to surface common themes in vaccine discussions.
+[Successful actual-source GitHub Actions run](https://github.com/jibrankazi/data-analytics-portfolio/actions/runs/37963620463) fetched the original official published feed (without a social-network API token), parsed dates, titles, summaries and publisher links, removed duplicate links and **excluded a link pointing to a non-publication preview host**, assigned automated lexical scores, generated plots, and uploaded artifact files.
 
-### Data Source
+| Provenance/observed result | Actual measured output |
+| --- | ---: |
+| Unique and dated original official Canada.ca publication URLs | **43** |
+| Excluded preview/non-official-domain link | **1** |
+| Earliest official entry publication | 2024-10-09 |
+| Latest official entry publication | 2026-09-23 |
+| Entries with negative VADER lexical polarity | 17 |
+| Entries with neutral VADER lexical polarity | 15 |
+| Entries with positive VADER lexical polarity | 11 |
+| Average automated lexical score | −0.04965 |
 
-Tweets are collected via the `snscrape` tool, which allows retrieval of public Twitter posts without requiring API credentials.  For this analysis, approximately 1 000 recent tweets containing phrases like “COVID vaccine” are scraped.  Each record includes metadata such as timestamp, text, hashtags, retweet count and whether the post is a retweet.  Example fields from a similar vaccination dataset include tweet ID, user name, user location, text and hashtags【43699772525297†L0-L18】.  Because tweets are user‑generated, the data may contain misspellings, slang or sarcasm that complicates sentiment analysis.
+These counts characterize **just the feed entries returned on the retrieval date**, not the full history of PHAC publications and not measured public emotion. VADER scores may incorrectly handle scientific or public-health terminology and have **no independently annotated reference labels** here.
 
-### Tools Used
+## Reproduce
 
-- **Python** with `pandas` for data collection and manipulation.
-- **snscrape** for scraping Twitter without API keys.
-- **NLTK** and **VADER** sentiment lexicon for scoring sentiment.
-- **Matplotlib**, **Seaborn** and **WordCloud** for visualisation.
-- Optional: **Tableau Public** or **Plotly Dash** for interactive dashboards.
+```bash
+python -m pip install pandas matplotlib feedparser vaderSentiment
+python public-health-sentiment/run_official_phac_rss.py
+```
 
-### Business Value
+Official original publisher: `https://www.canada.ca/content/dam/phac-aspc/rss/new-eng.xml`.
 
-Health authorities and communicators can use sentiment insights to adjust outreach strategies.  Positive sentiment spikes may correspond to successful campaigns, whereas surges in negative sentiment could indicate viral misinformation requiring intervention.  Tracking hashtags also reveals which vaccine brands or policies are being discussed, helping teams tailor responses.
+The output folder `public-health-sentiment/results/official_phac_messages/` contains:
+- `original_phac_feed_items_and_lexical_scores.csv`: original published timestamps, headlines, feed summaries and source URLs, plus calculated lexical scores.
+- `official_phac_published_message_lexical_tone.png`: generated actual publication-date trend chart.
+- `verified_results.json`: SHA-256 fingerprint of actual raw official feed bytes, true sample size, original publication period, extraction time and explicit scope limitations.
 
-### Approach and Key Findings
+The workflow uploads them as the `observed-phac-publisher-communications-language-audit` artifact.
 
-1. **Data Collection** –  A Python script uses `snscrape` to retrieve the latest 1 000 tweets containing the term “COVID vaccine”.  Duplicate retweets are removed to avoid overweighting popular messages.
-2. **Text Cleaning** –  URLs, mentions, hashtags and punctuation are stripped from the tweet text.  Tokens are converted to lowercase and stop words are removed.  Emojis and non‑ASCII characters are handled appropriately.
-3. **Sentiment Scoring** –  The VADER lexicon assigns a compound sentiment score to each tweet.  Scores range from –1 (most negative) to +1 (most positive).  Tweets are categorised as positive, neutral or negative based on threshold values.
-4. **Temporal Analysis** –  Sentiment scores are grouped by date to observe trends over time.  A line chart illustrates how overall sentiment evolved during the sampled period.
-5. **Word Cloud and Hashtag Analysis** –  The most frequent words and hashtags are visualised to highlight key topics.  This helps identify which vaccine brands or public figures attract attention.
-6. **Platform Comparison** –  If tweets from multiple sources (e.g. Twitter for iPhone vs. Android) are available, sentiment differences by platform are explored.
+## Unverified original Twitter component
 
-### Visualisations
+The original `notebooks/public_health_sentiment.py` depends on `snscrape` scraping public Twitter/X posts with no API credentials. **It has not been successfully executed or independently verified on genuine social-media content in this work**, and historical claims about collecting a thousand vaccination tweets or interpreting public opinion are **not supported**.
 
-- A **line chart** showing average sentiment scores per day
-- A **word cloud** of the most frequent words in the tweets
-- A **bar chart** of hashtag counts
-
-These visuals reveal periods of optimism and concern and spotlight the language people use when discussing vaccines.  A simple dashboard could combine these elements for stakeholders to monitor in real time.
+No missing tweets, social media user profiles, opinions or data labels have been fabricated. A proper public-opinion study would need a legally accessible actual social-media corpus, defensible sampling and human/validated sentiment labels. This government publication lexical-tone audit is an **honestly narrower, independently working analysis**.
