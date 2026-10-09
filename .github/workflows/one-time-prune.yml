@@ -51,7 +51,7 @@ jobs:
                   c = api(f"/repos/{repo}/compare/main...{urllib.parse.quote(name, safe='/')}")
                   safe = c.get("ahead_by") == 0
               if not safe and repo == "jibrankazi/data-analytics-portfolio" and name == "repair/validation-20261009":
-                  if sha != "a0871002b211f5aeb6b5eed991223ea9fd1a4e48":
+                  if sha != "17e15ee2cb3ff39582abb053586c640bf4002659":
                       raise RuntimeError("Older validation branch changed after review; refusing to delete")
                   reviewed = {
                       ".github/workflows/python-package-conda.yml": "d6bf1dbcf53e07926c597f17183c75930fb7fad3",
