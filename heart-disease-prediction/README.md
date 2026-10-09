@@ -1,44 +1,40 @@
-# Heart Disease Risk Prediction
+# Heart Disease Research — Real UCI Cleveland Data
 
-### Overview
+This project contains a reproducible **historical** supervised-learning evaluation on the genuine [UCI Heart Disease Cleveland dataset](https://archive.ics.uci.edu/dataset/45/heart+disease). UCI documents **303 original Cleveland observations**, 13 input features and a diagnosis-severity code `num` from 0 to 4. We use **0 = no recorded heart disease** and **1–4 = recorded heart disease present**. Missing original measurements are retained as missing values and imputed **using training data only**.
 
-This project focuses on building a predictive model that estimates the likelihood that a patient has heart disease.  The work is based on the Cleveland clinic subset of the UCI Heart Disease dataset, which contains just over 300 records and 14 clinically relevant attributes.  Each row represents a patient and includes demographic information (age and sex), medical measurements (resting blood pressure, serum cholesterol, maximum heart rate achieved) and results of diagnostic tests (chest pain type, fasting blood sugar, resting electrocardiographic results, exercise‑induced angina, ST depression and slope, number of major vessels coloured by fluoroscopy, and thalassemia).  The goal variable indicates the presence or absence of heart disease.
+**This is an educational research benchmark, not a validated medical screening or diagnostic product.** The dataset is small and historical, with no independent external clinical validation.
 
-### Problem Statement
+## Run the actual complete lifecycle
 
-Cardiovascular diseases remain a leading cause of mortality globally.  Identifying individuals at high risk enables clinicians to intervene earlier, tailor treatments and reduce costs.  The challenge is to construct a model that can discriminate between patients who have heart disease (a positive diagnosis) and those who do not based on the available clinical measurements.
+With Python 3.11 and an internet connection:
 
-### Data Source
+```bash
+python -m pip install pandas numpy scikit-learn matplotlib
+python heart-disease-prediction/run_verified_cleveland.py
+```
 
-The raw data originate from the Cleveland Clinic and were made publicly available through the UCI Machine Learning Repository.  In the Cleveland subset only 14 attributes are used and the target variable `num` indicates the presence of heart disease.  The features include age, sex, chest pain type, resting blood pressure, serum cholesterol, fasting blood sugar, resting electrocardiographic results, maximum heart rate achieved, exercise induced angina, ST depression induced by exercise, the slope of the peak exercise ST segment, number of major vessels coloured by fluoroscopy and thalassemia【684202365134492†L90-L104】.  Missing values exist for some categorical features (e.g. `ca`, `thal` and `slope`) and need to be imputed before modelling.
+The verified runner:
+1. Downloads original `processed.cleveland.data` **directly from UCI**, not a generated example or an unofficial GitHub mirror.
+2. Checks the full **303 × 14** shape, numeric fields, target codes, reasonable original-value ranges and expected missingness; a missing, empty or malformed download fails.
+3. Uses a reproducible **70% training / 30% stratified holdout**, fixed random seed 42.
+4. Fits median-free, **most-frequent imputation within each model's training pipeline**, scaling KNN from the training split only. Evaluates a prior-prevalence baseline, KNN (k=5) and a 200-tree Random Forest.
+5. Saves accuracy, balanced accuracy, ROC AUC, average precision, confusion matrices and a holdout ROC plot. The results are computed from the executed models, not copied from pre-existing plots.
 
-### Tools Used
+### Outputs
 
-- **Python** for data loading, cleaning, and modelling.
-- **Pandas** and **NumPy** for data manipulation.
-- **Matplotlib** and **Seaborn** for exploratory visualisations.
-- **Scikit‑learn** for machine learning models (K‑nearest neighbours and random forests) and evaluation metrics.
+- `heart-disease-prediction/results/verified_results.json`: source URL, UTC retrieval timestamp, SHA-256 fingerprint of the **actual downloaded raw bytes**, observations, features, missing values, split sizes, model scores and limitations.
+- `heart-disease-prediction/results/heldout_roc.png`: generated holdout ROC curves.
 
-### Business Value
+The data and plots are generated into the GitHub Actions **artifact**, not committed as new patient-level datasets. Check the [real Cleveland lifecycle workflow](https://github.com/jibrankazi/data-analytics-portfolio/actions/workflows/real-heart-cleveland.yml) and its latest completed run; an unexecuted job is not proof of results.
 
-Predictive models for heart disease risk assist healthcare providers in triaging patients and allocating resources.  An accurate classifier can highlight high‑risk individuals who may benefit from further diagnostic tests or lifestyle interventions.  Conversely, it can reduce unnecessary testing for those at low risk, improving patient experience and lowering costs.
+## Why the original older script was not sufficient
 
-### Approach and Key Findings
+The older `notebooks/heart_disease_analysis.py` uses an unofficial GitHub URL, discards patients with missing features and contains plots from an earlier context with no currently reproducible metric record. Its original narrative also mentions imputation and cross-validation that the code does not actually perform. **Those original plots are not evidence of a newly re-executed clinical experiment.** Use `run_verified_cleveland.py` for the current independently checked source-to-results pipeline.
 
-1. **Data Preparation** – The raw `.data` file from UCI was parsed with appropriate column names.  Missing values in the `ca`, `thal` and `slope` features were imputed using the most common value for each feature.  All categorical variables were encoded numerically.
-2. **Exploratory Analysis** – Pairwise correlations were examined to understand relationships between risk factors.  Age and maximum heart rate showed moderate correlations with the presence of disease, while features like chest pain type and ST depression exhibited stronger associations.
-3. **Modelling** – Two supervised models were trained:
-   * *K‑Nearest Neighbours* (KNN) –  A simple classification algorithm that makes predictions based on the most common class among the nearest neighbours in feature space.  Cross validation was used to select the optimal number of neighbours.
-   * *Random Forest* –  An ensemble of decision trees that improves predictive performance through bagging.  Feature importance scores from the forest highlighted chest pain type, the slope of the ST segment and number of major vessels as influential predictors.
-4. **Evaluation** – Models were evaluated using accuracy, confusion matrices and ROC‑AUC curves.  The random forest outperformed KNN with a higher area under the ROC curve and better balanced sensitivity and specificity.  Visualisations of the ROC curve and feature importance are provided in the `images` folder.
+The pre-existing tracked `data/processed.cleveland.data` had **zero bytes** and was not a valid data source; the verified pipeline retrieves directly from the original publisher instead.
 
-### Visualisations
+### Research boundaries
 
-Plots generated during the analysis include:
+This is a single 70/30 held-out experiment without repeated confidence intervals, external-site validation, decision-threshold optimization, drift monitoring, patient consent pathway, or regulatory approval. **Do not apply these outputs to individual medical decisions.**
 
-- Correlation heatmap of clinical variables
-- Confusion matrix comparing actual vs. predicted diagnoses
-- ROC curve illustrating model sensitivity vs. specificity
-- Bar chart of feature importances from the random forest
-
-These images are saved under `heart-disease-prediction/images`.  An interactive dashboard (Tableau or Power BI) can be added later to share findings with a non‑technical audience.
+Original reference: Jánosi A., Steinbrunn W., Pfisterer M. and Detrano R., *Heart Disease*, UCI Machine Learning Repository, DOI: [10.24432/C52P4X](https://doi.org/10.24432/C52P4X).
