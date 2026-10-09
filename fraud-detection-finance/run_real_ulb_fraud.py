@@ -23,7 +23,7 @@ from sklearn.metrics import (
     average_precision_score, confusion_matrix, f1_score,
     precision_recall_curve, precision_score, recall_score, roc_auc_score,
 )
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GroupShuffleSplit
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
@@ -55,25 +55,25 @@ def actual_ulb_dataset():
         raise ValueError("Original financial transaction input has missing/infinite features")
     if not X["Amount"].ge(0).all():
         raise ValueError("Impossible negative transaction amount in dataset")
-    # Prevent exact same anonymized observation from being in both partitions.
-    repeated = X.duplicated(keep="first")
-    duplicate_rows = int(repeated.sum())
-    clean_X = X.loc[~repeated].reset_index(drop=True)
-    clean_y = labels.loc[~repeated].reset_index(drop=True)
-    if len(clean_X) < 280000 or clean_y.sum() < 450:
-        raise ValueError("Deduplication excluded more actual records than expected")
-    # Fingerprint the exact ordered floating-point source for audit; do not
-    # claim an original network-payload SHA when using fetch_openml's parser.
+    # OpenML excludes original Time: identical anonymized PCA/Amount vectors
+    # can represent distinct original transactions. Do not throw source rows
+    # away or pretend that deduplicated records are independent transactions.
+    # Instead keep ALL real rows and assign identical feature vectors to
+    # the same train, validation or test partition (group leakage control).
+    feature_groups = pd.util.hash_pandas_object(X, index=False).to_numpy(dtype="uint64")
+    shared_feature_vectors = int(pd.Series(feature_groups).duplicated().sum())
     values = X.to_numpy(dtype="<f8", copy=True)
     digest = sha256(values.tobytes() + labels.to_numpy(dtype="int8").tobytes()).hexdigest()
-    return clean_X, clean_y, {"original_rows": int(len(X)),
-                             "original_positive_labels": 492,
-                             "duplicate_feature_rows_removed": duplicate_rows,
-                             "source_numeric_values_sha256": digest,
-                             "deduplicated_rows": int(len(clean_X)),
-                             "deduplicated_fraud_labels": int(clean_y.sum()),
-                             "features": feature_names,
-                             "time_field_available_from_openml": "Time" in source}
+    return X.reset_index(drop=True), labels.reset_index(drop=True), feature_groups, {
+        "original_rows": int(len(X)),
+        "original_positive_labels": 492,
+        "repeated_anonymized_feature_vectors_grouped_across_splits": shared_feature_vectors,
+        "source_numeric_values_sha256": digest,
+        "original_rows_preserved": int(len(X)),
+        "original_fraud_labels_preserved": int(labels.sum()),
+        "features": feature_names,
+        "time_field_available_from_openml": "Time" in source,
+    }
 
 
 def validation_threshold(y, probability):
@@ -99,16 +99,24 @@ def metric_summary(y, probs, threshold):
 
 
 def run(output="fraud-detection-finance/results/ulb_real_fraud"):
-    X, y, provenance = actual_ulb_dataset()
+    X, y, groups, provenance = actual_ulb_dataset()
     source_rows = np.arange(len(X))
-    train_val_idx, test_idx = train_test_split(
-        source_rows, test_size=.2, random_state=42, stratify=y
-    )
-    train_idx, val_idx = train_test_split(
-        train_val_idx, test_size=.25, random_state=42, stratify=y.iloc[train_val_idx]
-    )
-    if set(train_idx) & set(test_idx) or set(val_idx) & set(test_idx):
-        raise ValueError("Train/test partitions overlap")
+    # Group-wise splits keep exact repeated published PCA/Amount vectors on
+    # ONE side; unlike random splitting, source duplicates cannot leak.
+    first = GroupShuffleSplit(n_splits=1, test_size=.20, random_state=42)
+    train_val_part, test_part = next(first.split(X, y, groups))
+    second = GroupShuffleSplit(n_splits=1, test_size=.25, random_state=42)
+    train_part, val_part = next(second.split(
+        X.iloc[train_val_part], y.iloc[train_val_part],
+        groups=groups[train_val_part]
+    ))
+    train_val_idx = train_val_part
+    train_idx, val_idx, test_idx = train_val_part[train_part], train_val_part[val_part], test_part
+    for left, right in ((train_idx, val_idx), (train_idx, test_idx), (val_idx, test_idx)):
+        if np.intersect1d(groups[left], groups[right]).size:
+            raise ValueError("Original identical feature vectors leaked across groups")
+    if min(int(y.iloc[idx].sum()) for idx in (train_idx, val_idx, test_idx)) < 40:
+        raise ValueError("Insufficient original fraud cases in a feature-group holdout")
     X_train, y_train = X.iloc[train_idx], y.iloc[train_idx]
     X_val, y_val = X.iloc[val_idx], y.iloc[val_idx]
     X_test, y_test = X.iloc[test_idx], y.iloc[test_idx]
@@ -152,12 +160,12 @@ def run(output="fraud-detection-finance/results/ulb_real_fraud"):
     output_dir = Path(output)
     output_dir.mkdir(parents=True, exist_ok=True)
     test_scoring = pd.DataFrame({
-        "deduplicated_original_row_position": test_idx,
+        "original_openml_row_position": test_idx,
         "original_fraud_label": y_test.to_numpy(),
     })
     for name, proba in test_predictions.items():
         test_scoring[f"probability_{name}"] = proba
-    test_scoring.sort_values("deduplicated_original_row_position").to_csv(
+    test_scoring.sort_values("original_openml_row_position").to_csv(
         output_dir / "heldout_real_ulb_probabilities.csv", index=False
     )
     fig, ax = plt.subplots(figsize=(8, 5))
@@ -178,7 +186,7 @@ def run(output="fraud-detection-finance/results/ulb_real_fraud"):
         "retrieved_utc": datetime.now(timezone.utc).isoformat(),
         "data_contract": provenance,
         "split": {
-            "method": "60/20/20 stratified random after original-source feature deduplication",
+            "method": "approximately 60/20/20 group-wise random split retaining all original rows and keeping identical PCA+Amount vectors together",
             "why_not_chronological": "OpenML 1597 version lacks the original Time feature",
             "train_rows": len(train_idx), "validation_rows": len(val_idx),
             "test_rows": len(test_idx), "train_fraud": int(y_train.sum()),
@@ -191,7 +199,7 @@ def run(output="fraud-detection-finance/results/ulb_real_fraud"):
         "models": results,
         "limitations": (
             "Genuine but historical 2013 anonymized fraud cases (not PaySim). "
-            "Stratified random split is not forward-time validation; no future "
+            "Feature-group random split is not forward-time validation; no future "
             "drift, time, cardholder identity, financial cost weighting, "
             "institutional permissions or live production controls measured."
         ),
