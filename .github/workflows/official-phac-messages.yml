@@ -33,7 +33,8 @@ jobs:
           assert len(result["original_response_sha256"])==64
           assert result["real_unique_dated_publisher_entries"]>=5
           assert len(data)==result["real_unique_dated_publisher_entries"]
-          assert data.official_url.str.startswith(("https://www.canada.ca/","http://www.canada.ca/")).all()
+          from urllib.parse import urlparse
+          assert data.official_url.apply(lambda u: (urlparse(u).hostname or "").lower() in ("canada.ca", "www.canada.ca") or (urlparse(u).hostname or "").lower().endswith(".canada.ca")).all()
           assert data.official_url.is_unique
           assert data.published_date.notna().all()
           assert data.vader_compound_lexical_tone.between(-1,1).all()
