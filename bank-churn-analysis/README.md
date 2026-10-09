@@ -1,44 +1,48 @@
-## Bank Customer Churn Analysis
+# IBM Telco Customer Churn — verified example-data machine-learning benchmark
 
-### Overview
+The code in this folder uses **IBM's published Telco Customer Churn demonstration CSV**, a historical teaching/sample dataset, **not verified live telecom customer records and not bank account data**. It cannot establish real-world retention savings, future churn lift or deployment readiness.
 
-Retaining customers is vital for financial institutions, as the cost of acquiring new clients often exceeds the cost of keeping existing ones. This project analyses customer behaviour to predict churn—whether a customer will close their account—and identifies the factors driving that decision. Using the Telco customer churn dataset from IBM, the aim is to build interpretable models that can be used to guide retention strategies.
+### Independently executed, reproducible model lifecycle
 
-### Problem Statement
+[Successful October 9, 2026 GitHub Actions train-and-holdout run](https://github.com/jibrankazi/data-analytics-portfolio/actions/runs/37962422491) checked the existing published sample and completed fitting, evaluation, plot-generation and artifact checks.
 
-Banks and telco companies face churn when customers cancel their services. Understanding which customers are likely to leave and why allows proactive engagement. The challenge is to model churn as a function of demographic information (e.g. gender, senior citizen), account tenure, services subscribed and billing details. The goal is to predict churn and rank drivers to inform targeted interventions.
+| Measured observation from the actual executed run | Value |
+| --- | ---: |
+| Original IBM example CSV rows | 7,043 |
+| Churn labels marked Yes | 1,869 |
+| Feature columns after removing sample customer ID and target | 19 |
+| Numeric missing cells (original blank TotalCharges) | 11 |
+| Stratified training rows | 5,282 |
+| Untouched holdout rows | 1,761 |
 
-### Data Source
+| Model | Held-out accuracy | Held-out ROC AUC |
+| --- | ---: | ---: |
+| Prior-probability baseline | 73.48% | 0.500 |
+| Logistic regression | 80.81% | 0.846 |
+| Random Forest | 80.12% | 0.843 |
 
-The dataset comes from IBM’s Telco Customer Churn sample, which contains about 7 000 customers and includes features such as customer ID, gender, whether the person is a senior citizen, partner and dependent status, tenure, types of phone and internet service, contract type, payment method and charges【990940360085099†L0-L9】. The target variable `Churn` indicates whether the customer left within the last month. Some records include missing or categorical values (e.g. “No internet service”) that need to be encoded.
+Note that naive accuracy can exaggerate performance on imbalanced labels: the always-majority baseline reaches 73.5% accuracy despite a useless 0.500 ROC AUC. The model evaluation also records **balanced accuracy, average precision and confusion matrices**.
 
-### Tools Used
+### Run the verified code
 
-- **Python** with `pandas` and `NumPy` for cleaning and preparation.
-- **Scikit‑learn** for modelling (logistic regression, decision trees, random forests and gradient boosting) and evaluation.
-- **Matplotlib** and **Seaborn** for visualisations.
-- **Imbalanced‑Learn** for optional resampling if classes are imbalanced.
+```bash
+python -m pip install numpy pandas matplotlib scikit-learn
+python bank-churn-analysis/run_verified_telco.py
+```
 
-### Business Value
+This program uses `bank-churn-analysis/data/Telco-Customer-Churn.csv`, checks that it is the **7,043-row IBM demonstration schema**, calculates the SHA-256 fingerprint of the actual input file, and trains three models with a fixed 75/25 stratified split. IDs are never features; median numeric imputation, categoricals and scaling are fitted on the **training partition only** to prevent data leakage.
 
-Reducing churn improves profitability and customer lifetime value. By identifying high‑risk customers and the factors associated with their decisions, management can offer personalised retention incentives (e.g. loyalty programmes, discounts or service upgrades) and improve customer satisfaction. Insights from churn analysis also inform marketing campaigns and resource allocation.
+It writes the following generated results to `bank-churn-analysis/results/`:
 
-### Approach and Key Findings
+- `verified_results.json`: exact sample-data provenance, file fingerprint, split and actual measured metrics.
+- `holdout_roc.png`: ROC curves generated from the held-out predictions.
 
-1. **Data Cleaning** – The dataset is loaded and inspected. Total charges are converted to numeric, and missing values are handled. Categorical features (e.g. gender, contract type, internet service) are encoded using one‑hot encoding.
-2. **Exploratory Analysis** – Churn rates are examined across demographics, tenure ranges and subscription types. For example, customers on month‑to‑month contracts or with fibre‑optic internet tend to churn at higher rates.
-3. **Modelling** – Several algorithms are compared:
-   * *Logistic Regression* – A baseline linear model that provides interpretable coefficients.
-   * *Decision Tree* and *Random Forest* – Non‑linear models that capture complex interactions.
-   * *Gradient Boosting* – XGBoost or light gradient boosting to improve predictive accuracy.
-4. **Evaluation** – Accuracy, precision, recall, F1‑score and ROC‑AUC are computed. Models are validated using cross‑validation. Feature importance from tree‑based models highlights influential variables such as tenure, contract type and monthly charges.
-5. **Segmentation and Recommendations** – Customers are segmented by risk level, and specific retention actions are proposed (e.g. long‑term contract offers for high‑tenure customers on month‑to‑month plans). Visualisations of churn rates by segment are included in the `images` folder.
+GitHub Actions uploads both as the `verified-ibm-telco-illustrative-churn-analysis` run artifact.
 
-### Visualisations
+**Not validated:** Actual customer records, financial institution churn, independent out-of-sample institutions, fairness, statistical confidence intervals, retention uplift, real-world decisions, production integration or economic ROI.
 
-- Bar charts showing churn rates by contract type, tenure buckets and service subscriptions
-- Correlation heatmap of numerical variables
-- Confusion matrix and ROC curves for each model
-- Feature importance plots for tree‑based models
+### Existing historical script
 
-These analyses enable data‑driven recommendations to reduce churn and enhance customer satisfaction.
+The pre-existing `notebooks/bank_churn_analysis.py` is an older educational example with a remotely hosted CSV dependency and saved exploratory charts. The newly tested `run_verified_telco.py` is the reproducible source-to-results workflow; prior static images alone are not evidence of a new execution.
+
+Original publicly distributed example: [IBM Telco Customer Churn](https://github.com/IBM/telco-customer-churn-on-icp4d).
