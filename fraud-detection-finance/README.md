@@ -4,6 +4,8 @@ This folder now contains an **executed historical credit-card fraud classificati
 
 ## Interview engineering addition: fixed-threshold cost sensitivity
 
+[**Passed end-to-end original OpenML source, training, fixed-threshold decision-analysis and verification run**](https://github.com/jibrankazi/data-analytics-portfolio/actions/runs/38342914993). The same workflow independently rechecked 56,965 historic heldout rows: **61 detected frauds, 21 missed frauds, 11 false alerts and 56,872 correctly unflagged nonfrauds**. Under explicitly invented cost assumptions (for example, $10 per false alert and $100 per missed fraud), the illustrative test-set accounting is 61 × $100 − 11 × $10 = **$5,990 lower hypothetical cost** versus a never-flag policy. These numbers are **not realized dollar savings, a bank's actual fraud losses or a model-selection result**.
+
 A separate `analyze_fraud_costs.py` script evaluates the **already frozen
 validation-selected model and threshold** on the existing ULB heldout probability
 artifact. It independently reconstructs TN, FP, FN and TP from the published
