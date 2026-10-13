@@ -1,0 +1,27 @@
+name: Frozen fraud decision cost unit tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "fraud-detection-finance/analyze_fraud_costs.py"
+      - "fraud-detection-finance/tests/test_fraud_cost_sensitivity.py"
+      - ".github/workflows/fraud-decision-unit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-frozen-decision-accounting:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install post-hoc decision-evaluation dependencies
+        run: python -m pip install numpy pandas
+      - name: Check mathematical cost scenarios and fail-closed original confusion audit
+        run: python -m unittest discover -s fraud-detection-finance/tests -p 'test_fraud_cost_sensitivity.py' -v
