@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - "fraud-detection-finance/run_real_ulb_fraud.py"
+      - "fraud-detection-finance/analyze_fraud_costs.py"
+      - "fraud-detection-finance/tests/test_fraud_cost_sensitivity.py"
       - "fraud-detection-finance/notebooks/fraud_detection.py"
       - ".github/workflows/real-ulb-fraud.yml"
   workflow_dispatch:
@@ -59,6 +61,36 @@ jobs:
               assert sum(map(sum,scores["confusion_matrix_true_0_1"])) == split["test_rows"]
           assert (root/"heldout_precision_recall.png").read_bytes()[:8] == bytes.fromhex("89504e470d0a1a0a")
           print("REAL FRAUD AUDIT PASS: all 284807 original source rows, identical-observation group leak guard, three fitted classifiers and isolated validation/test.")
+          PY
+      - name: Test post-hoc cost accounting without test-threshold tuning
+        run: |
+          python -m unittest discover -s fraud-detection-finance/tests -p 'test_fraud_cost_sensitivity.py' -v
+      - name: Recompute frozen-threshold false alerts and missed frauds under explicit hypothetical costs
+        run: python -u fraud-detection-finance/analyze_fraud_costs.py
+      - name: Independently verify fixed-threshold cost sensitivity artifact
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("fraud-detection-finance/results/ulb_real_fraud")
+          report = json.loads((root/"verified_results.json").read_text())
+          result = json.loads((root/"frozen_threshold_cost_sensitivity.json").read_text())
+          assert result["selected_model"] == report["selected_model"]
+          assert result["n_test"] == report["split"]["test_rows"]
+          assert result["actual_fraud_labels"] == report["split"]["test_fraud"]
+          assert not result["threshold_or_model_tuned_using_holdout_labels"]
+          assert result["assumptions_not_observed_loss_or_operational_savings"]
+          chosen = report["models"][result["selected_model"]]
+          cm = chosen["untouched_test"]["confusion_matrix_true_0_1"]
+          tn, fp, fn, tp = result["actual_selected_threshold_tn_fp_fn_tp"]
+          assert cm == [[tn, fp], [fn, tp]]
+          for scenario in result["hypothetical_cost_scenarios"].values():
+              m = scenario["assumed_cost_missed_fraud"]
+              f = scenario["assumed_cost_false_positive_alert"]
+              assert scenario["never_flag_anything_hypothetical_cost"] == (fn+tp)*m
+              assert scenario["validation_threshold_alert_policy_hypothetical_cost"] == fn*m + fp*f
+              assert scenario["illustrative_difference_vs_never_flagging"] == tp*m - fp*f
+          print("Verified frozen validation-policy FP/FN and purely hypothetical cost assumptions.")
           PY
       - uses: actions/upload-artifact@v4
         with:
