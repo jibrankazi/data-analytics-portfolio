@@ -2,6 +2,37 @@
 
 This folder now contains an **executed historical credit-card fraud classification system** using **original, genuine, anonymized European cardholder transactions**, not generated or substituted PaySim records. It is an educational research benchmark; it is **not deployed bank software**.
 
+## Interview engineering addition: fixed-threshold cost sensitivity
+
+A separate `analyze_fraud_costs.py` script evaluates the **already frozen
+validation-selected model and threshold** on the existing ULB heldout probability
+artifact. It independently reconstructs TN, FP, FN and TP from the published
+test rows and checks they exactly match the original model report. Then it
+calculates the possible consequences of false alerts versus undetected fraud
+under three **explicit hypothetical** cost assumptions.
+
+```bash
+# Once the source-to-model benchmark has already produced its results:
+python -m unittest discover -s fraud-detection-finance/tests -p 'test_fraud_cost_sensitivity.py' -v
+python fraud-detection-finance/analyze_fraud_costs.py
+```
+
+The resulting `frozen_threshold_cost_sensitivity.json` records original-result
+checks, file hashes, real historical classification counts, and separate
+illustrative cost arithmetic. It is uploaded by the
+[fraud workflow](https://github.com/jibrankazi/data-analytics-portfolio/actions/workflows/real-ulb-fraud.yml)
+when the new workflow passes.
+
+This demonstrates the difference between **classification quality** and a
+**decision policy**. The assumed false-alert and missed-fraud costs **are not
+real bank losses, consumer impacts or realized cost savings**. The original
+threshold was selected on validation data for F1, *not* optimized on the
+holdout labels or these hypothetical cost scenarios. All cost analyses are
+post-hoc sensitivities, not evidence of the profitability or safety of a live
+fraud detection program.
+
+---
+
 ## The original problem is fixed
 
 Previously, `notebooks/fraud_detection.py` could not run on another computer because it opened a fixed `C:\\Users\\...\\Downloads\\...csv` path, which is absent from the repository. It also applied SMOTE **before** a train/test split, contaminating the evaluation with synthetic observations derived from training-and-test data.
